@@ -22,21 +22,35 @@ MELD & MELD-Na Score (末期肝病模式)
 
 內建洗腎條件與數值防呆機制 (底限 1.0，肌酸酐上限 4.0)。
 
-BCLC Staging (巴塞隆納肝癌分期 2022 版)
+MELD 3.0 (Kim 2021；美國 OPTN 自 2023 年採用)
 
-綜合患者體能狀況 (ECOG)、肝功能 (Child-Pugh) 與腫瘤特徵 (數量、尺寸、血管侵犯、肝外轉移)。
+加入性別與白蛋白；肌酸酐上限 3.0，白蛋白限 1.5–3.5，最高 40 分。
 
-自動判定分期 (0, A, B, C, D) 並對應國際指引的標準治療建議。
+BCLC Staging (巴塞隆納肝癌分期 2026 版，J Hepatol 2026;84:631)
+
+綜合 ECOG、肝功能 (Child-Pugh + 失代償病史)、門脈高壓 (CSPH)、移植候選資格、AFP 與腫瘤特徵 (顆數、最大直徑 cm、血管侵犯、肝外轉移)。
+
+自動判定分期 (0, A, B, C, D) 與 BCLC 2026 第一線治療及替代選項，並檢查 Milan / Up-to-7 準則。
+
+## v2.0 修正 (2026-10-25)
+
+- 空白或超出範圍的檢驗值不再算出分數（舊版 Na 空白時 MELD-Na 會以 125 計而大幅升高）
+- MELD-Na 依 OPTN 規則：MELD(i) 先取小數一位、上限 40；透析定義改為 7 天內 ≥ 2 次或 CVVHD ≥ 24 小時
+- 腫瘤改輸入實際顆數與直徑，可正確判斷 Milan (單顆 ≤ 5 cm)；舊版只能分 ≤2 / 2–3 / >3 cm
+- Child-Pugh A 但有失代償病史、或有腹水 / 肝腦病變，不再視為肝功能保留
+- 治療建議依 BCLC 2026 細分 (CSPH、移植、B 期次分組、C 期第一 / 二線)
+- 修正無效的 status-bar 設定、移除禁止縮放；CDN 鎖定版本；改用實體 manifest + Service Worker 支援離線
+- 新增示例病例、參考文獻與 `node tests.cjs` 自動測試 (83 項)
 
 🚀 系統特色與技術架構
 
 純前端運算 (Client-Side Only)：無需後端伺服器，病患的檢驗數據完全留在使用者的瀏覽器中，無個資外洩風險。
 
-單一檔案部署 (Single-File Architecture)：所有的 HTML、CSS 與 JavaScript 皆整合於單一檔案中，無需繁雜的編譯過程。只需雙擊檔案即可在任何現代瀏覽器執行。
+主程式單一檔案 (index.html)：所有 HTML、CSS 與 JavaScript 皆整合於單一檔案中，無需繁雜的編譯過程。只需雙擊檔案即可在任何現代瀏覽器執行。
 
 PWA (漸進式網頁應用) 支援：
 
-網頁內建動態產生的 manifest.json。
+manifest.webmanifest + sw.js，部署後可離線使用。
 
 支援行動裝置「加入主畫面 (Add to Home Screen)」，提供宛如原生 App 般的全螢幕操作體驗。
 
@@ -54,13 +68,11 @@ HTML5 / JavaScript (ES6)
 
 方式一：本機直接執行
 
-下載或複製本專案的 hcc-calculator-pwa.html 檔案。
+下載或複製本專案的 index.html 檔案（本機開啟無離線功能）。
 
 在電腦或手機上使用任何現代瀏覽器（Chrome, Safari, Edge, Firefox）開啟該檔案即可使用。
 
 方式二：靜態網頁託管 (如 GitHub Pages)
-
-將 hcc-calculator-pwa.html 更名為 index.html。
 
 將檔案上傳至 GitHub 儲存庫。
 
@@ -78,5 +90,5 @@ HTML5 / JavaScript (ES6)
 
 ⚠️ 免責聲明 (Medical Disclaimer)
 
-本計算機所提供之運算結果與治療建議均基於國際醫療指引（如 EASL, AASLD 最新共識），僅供醫療專業人員參考與教學使用。
+本計算機所提供之運算結果與治療建議均基於國際醫療指引（BCLC 2026、OPTN MELD 規則），僅供醫療專業人員參考與教學使用。
 實際臨床處置必須由具備合格執照之醫師，綜合病患各項檢查報告與實際生理狀況後做出最終決策。本工具不應取代專業的臨床判斷。
