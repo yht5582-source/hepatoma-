@@ -36,7 +36,7 @@
             <div class="px-4 pt-3 pb-2 flex justify-between items-center gap-2">
                 <div class="min-w-0">
                     <h1 class="text-lg sm:text-xl font-bold leading-tight">HCC & Liver Disease Calc</h1>
-                    <div class="text-[11px] text-blue-100">v2.1 · BCLC 2026 · MELD 3.0</div>
+                    <div class="text-[11px] text-blue-100">v2.2 · BCLC 2026 · MELD 3.0</div>
                 </div>
                 <div v-show="tab === 'calc'" class="flex items-center gap-2 shrink-0">
                     <button @click="loadExample" class="bg-blue-500 hover:bg-blue-400 px-3 py-1 rounded-full text-sm font-semibold transition">示例</button>
@@ -588,9 +588,15 @@ const HCC = (() => {
             why: (single ? '單顆 ' + d + ' cm' : n + ' 顆、皆 ≤ 3 cm') + '，ECOG 0，肝功能保留' + (s.cspH ? '，有 CSPH' : '，無 CSPH'),
         };
         if (single) {
+            // BCLC 2026 Fig. 5：BCLC-0 非移植候選人 → 燒灼；移植候選人才依門脈壓分流
+            if (stage === '0' && !s.ltCandidate && !s.cspH) return {
+                ...head, why: head.why + '，非移植候選人', primary: '燒灼（RFA / MWA，MWA 較佳）',
+                options: ['TACE、TARE、EBRT 為可接受替代；周邊腫瘤也可考慮微創切除',
+                    '若可為移植候選人，改依門脈壓分流：無 CSPH 切除，有 CSPH 移植'], os: OS.early,
+            };
             if (!s.cspH) return {
                 ...head, primary: '肝切除' + (stage === 'A' ? '（優先微創）' : ''),
-                options: [stage === '0' ? '移植候選人可依當地政策考慮直接移植，或「燒灼後等待」復發時再評估移植' : '病理有微血管侵犯 / 衛星結節者可考慮直接 (ab initio) 移植',
+                options: [stage === '0' ? (afpBlocksLT ? 'AFP > 1000 ng/mL：移植後復發風險過高' : '也可依當地政策考慮直接移植，或「燒灼後等待」復發時再評估移植') : '病理有微血管侵犯 / 衛星結節者可考慮直接 (ab initio) 移植',
                     '無法切除 → 燒灼（MWA 對 ≤ 3–4 cm 局部控制優於 RFA）；TACE、TARE、EBRT 為可接受替代'], os: OS.early,
             };
             if (ltOK) return {
@@ -649,15 +655,16 @@ const HCC_CASES = [
         input: { bili: 1.1, alb: 3.8, inr: 1.1, crea: 0.9, na: 139, sex: 'F', cspH: true, nodules: 1, size: 1.8, afp: 12 },
         expect: { stage: '0', cp: 'A', cpScore: 5, albi: 2, milan: true, upTo7: true, primary: '燒灼' },
         teach: [
-            '分期決定「腫瘤有多早」，CSPH 決定「能不能開」：BCLC-0 無 CSPH 時首選切除，有 CSPH 時切除風險明顯升高。',
+            'BCLC 2026 第 5 圖：BCLC-0 先問是否為移植候選人。不是就燒灼；是才依 CSPH 分流，無 CSPH 切除，有 CSPH 移植。',
             '不適合移植時，燒灼是主軸。MW 對 3–4 cm 以內腫瘤的局部控制較 RFA 可靠；SURF 試驗未顯示切除的存活優於 RFA。',
             'BCLC 2026 也將 EBRT 納入 BCLC-0 的燒灼性選項，TACE、TARE 為可接受替代。',
         ],
         whatIf: [
-            { label: '沒有 CSPH', set: { cspH: false }, expect: '肝切除' },
+            { label: '沒有 CSPH，仍非移植候選人', set: { cspH: false }, expect: '燒灼' },
+            { label: '沒有 CSPH，且可為移植候選人', set: { cspH: false, ltCandidate: true }, expect: '肝切除' },
             { label: '有 CSPH，且可為移植候選人', set: { ltCandidate: true }, expect: '肝臟移植' },
         ],
-        src: 'BCLC 2026：Very early stage',
+        src: 'BCLC 2026：Very early stage；Fig. 5',
     },
     {
         id: 'c2', tag: '早期', title: '三顆都在 Milan 內，AFP 卻是 2400',
@@ -859,8 +866,8 @@ const HCC_MAP = {
     ],
     tx: [
         { t: 'BCLC-0', s: '單顆 ≤ 2 cm · 中位存活 > 5 年', l: [
-            { k: '無 CSPH', x: '切除；可依當地政策考慮移植或「燒灼後等待」' },
-            { k: '有 CSPH', x: '可移植則移植；否則燒灼' },
+            { k: '非移植候選人', x: '燒灼' },
+            { k: '移植候選人', x: '無 CSPH 切除；有 CSPH 移植；亦可依當地政策「燒灼後等待」' },
             { k: '替代', x: 'RFA/MW 為主，TACE、TARE、EBRT 可作為有效替代' },
         ] },
         { t: 'BCLC-A', s: '單顆 > 2 cm 或 ≤ 3 顆皆 ≤ 3 cm · > 5 年', l: [

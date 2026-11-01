@@ -105,7 +105,12 @@ ok(HCC.evaluate(S({ bili: 2.5, alb: 3.0, inr: 1.8 })).notes.some(x => x.text.inc
 
 // Treatment recommendations
 const tx = o => HCC.evaluate(S(o)).bclc;
-ok(tx({ nodules: 1, size: 1.8 }).primary.includes('肝切除'), 'BCLC-0 no CSPH → resection');
+ok(tx({ nodules: 1, size: 1.8 }).primary.includes('燒灼'), 'BCLC-0 not LT candidate, no CSPH → ablation (Fig. 5)');
+ok(tx({ nodules: 1, size: 1.8, cspH: true }).primary.includes('燒灼'), 'BCLC-0 not LT candidate, CSPH → ablation');
+ok(tx({ nodules: 1, size: 1.8, ltCandidate: true }).primary.includes('肝切除'), 'BCLC-0 LT candidate, no CSPH → resection');
+ok(tx({ nodules: 1, size: 1.8, ltCandidate: true, cspH: true }).primary.includes('肝臟移植'), 'BCLC-0 LT candidate, CSPH → transplant');
+ok(tx({ nodules: 1, size: 1.8, ltCandidate: true, cspH: true, afp: 2000 }).primary.includes('燒灼'), 'BCLC-0 LT candidate, CSPH, AFP > 1000 → ablation');
+ok(tx({ nodules: 1, size: 3 }).primary.includes('肝切除'), 'BCLC-A not LT candidate, no CSPH → still resection');
 ok(tx({ nodules: 1, size: 1.8, cspH: true }).primary.includes('燒灼'), 'BCLC-0 CSPH, no LT → ablation');
 ok(tx({ nodules: 1, size: 1.8, cspH: true, ltCandidate: true }).primary.includes('移植'), 'BCLC-0 CSPH, LT → transplant');
 ok(tx({ nodules: 1, size: 4, cspH: true }).primary.includes('TACE'), 'BCLC-A single 4 cm CSPH no LT → TACE/TARE/EBRT alternatives');
