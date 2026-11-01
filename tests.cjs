@@ -120,5 +120,88 @@ ok(tx({ vasc: true }).primary.includes('Atezolizumab'), 'BCLC-C → IO combinati
 ok(tx({ vasc: true, afp: 500 }).options.some(o => o.includes('本例符合')), 'AFP ≥400 → ramucirumab flag');
 ok(tx({ ecog: 4 }).primary.includes('支持性'), 'BCLC-D → BSC');
 
+// 教學分頁：病例、考題、心智圖與引擎互相核對
+const block = (a, b) => src.split(a)[1].split(b)[0];
+const { HCC_CASES, HCC_QUIZ, HCC_MAP } = new Function(
+  block('/*CASES-START*/', '/*CASES-END*/') + block('/*QUIZ-START*/', '/*QUIZ-END*/') + block('/*MAP-START*/', '/*MAP-END*/') +
+  '; return { HCC_CASES, HCC_QUIZ, HCC_MAP };')();
+
+eq(HCC_CASES.length, 6, '6 cases');
+eq(new Set(HCC_CASES.map(c => c.id)).size, 6, 'case ids unique');
+for (const c of HCC_CASES) {
+  const r = HCC.evaluate(S(c.input)), e = c.expect;
+  eq(Object.keys(r.labErr).length + Object.keys(r.tumorErr).length, 0, c.id + ' inputs valid');
+  eq(r.bclc.stage, e.stage, c.id + ' stage');
+  eq(r.cp.cls, e.cp, c.id + ' Child-Pugh class');
+  eq(r.cp.score, e.cpScore, c.id + ' Child-Pugh score');
+  eq(r.albi.grade, e.albi, c.id + ' ALBI grade');
+  eq(r.burden.milan, e.milan, c.id + ' Milan');
+  eq(r.burden.upTo7, e.upTo7, c.id + ' Up-to-7');
+  ok(r.bclc.primary.includes(e.primary), c.id + ' primary includes ' + e.primary);
+  ok(c.teach.length >= 3 && c.whatIf.length >= 2 && c.src, c.id + ' has teaching content');
+  for (const w of c.whatIf) ok(HCC.evaluate(S({ ...c.input, ...w.set })).bclc.primary.includes(w.expect), c.id + ' what-if: ' + w.label);
+}
+// 病例敘述與解析中的數值
+const caseById = id => HCC_CASES.find(c => c.id === id);
+eq(HCC.albi(S(caseById('c6').input)).score.toFixed(2), '-1.60', 'c6 ALBI text');
+ok(caseById('c6').teach.join('').includes('−1.60'), 'c6 teach states ALBI −1.60');
+ok(HCC.evaluate(S(caseById('c6').input)).notes.some(x => x.text.includes('Child-Pugh B')), 'c6 grey-zone note fires');
+ok(HCC.evaluate(S(caseById('c2').input)).notes.some(x => x.text.includes('AFP > 1000')), 'c2 AFP note fires');
+eq(HCC.evaluate(S(caseById('c2').input)).burden.milan, true, 'c2 inside Milan despite AFP');
+
+eq(HCC_QUIZ.length, 20, '20 questions');
+eq(HCC_QUIZ.filter(q => q.level === 'basic').length, 10, '10 basic');
+eq(HCC_QUIZ.filter(q => q.level === 'adv').length, 10, '10 advanced');
+eq(new Set(HCC_QUIZ.map(q => q.id)).size, 20, 'quiz ids unique');
+eq([0, 1, 2, 3].map(i => HCC_QUIZ.filter(q => q.ans === i).length), [5, 5, 5, 5], 'answers spread A–D 5 each');
+for (const q of HCC_QUIZ) {
+  eq(q.opts.length, 4, q.id + ' has 4 options');
+  eq(new Set(q.opts).size, 4, q.id + ' options distinct');
+  ok(q.why && q.src && q.topic, q.id + ' has explanation and source');
+}
+const strictLongest = HCC_QUIZ.filter(q => { const m = Math.max(...q.opts.map(o => o.length)); return q.opts[q.ans].length === m && q.opts.filter(o => o.length === m).length === 1; });
+ok(strictLongest.length <= 6, 'correct option is not usually the longest (' + strictLongest.length + ')');
+const Q = id => HCC_QUIZ.find(q => q.id === id), key = id => Q(id).opts[Q(id).ans];
+// 可計算的題目以引擎核對
+eq(stage({ nodules: 1, size: 1.9 }), '0', 'b1 1.9 cm → 0');
+eq(stage({ nodules: 1, size: 2.5 }), 'A', 'b1 distractor 2.5 cm → A');
+eq(stage({ nodules: 2, size: 1.5 }), 'A', 'b1 distractor 2 × 1.5 cm → A');
+const b2 = HCC.childPugh(S({ bili: 2.5, alb: 3.0, inr: 1.8 }));
+ok(key('b2').includes(b2.cls + ' 級') && key('b2').includes(b2.score + ' 分'), 'b2 key matches engine');
+const b3 = HCC.albi(S({ bili: 1, alb: 4 }));
+ok(key('b3').includes('第 ' + b3.grade + ' 級') && key('b3').includes('−2.59') && b3.score.toFixed(2) === '-2.59', 'b3 key matches engine');
+eq(key('b4'), 'BCLC-' + stage({ nodules: 2, size: 3.5 }), 'b4 key matches engine');
+eq(stage({ nodules: 1, size: 2, ecog: 1 }), 'C', 'b5 ECOG 1 → C');
+ok(key('b5').includes('BCLC-C'), 'b5 key says C');
+eq(stage({ decompHx: true, nodules: 1, size: 2 }), 'D', 'b8 prior bleed not preserved');
+const os = o => HCC.evaluate(S(o)).bclc.os;
+ok(key('b9').includes('B 期 ' + os({ nodules: 5, size: 3 })) && key('b9').includes('C 期約 2 年') && os({ vasc: true }) === '約 2 年' && key('b9').includes('D 期 ' + os({ ecog: 3 })), 'b9 key matches engine OS');
+const b10 = HCC.burden(S({ nodules: 3, size: 4 }));
+eq([b10.milan, b10.upTo7], [false, true], 'b10 burden');
+ok(key('b10').includes('Milan 不符合') && key('b10').includes('Up-to-7 符合'), 'b10 key text');
+ok(tx({ nodules: 3, size: 2.5, ltCandidate: false }).primary.includes('燒灼'), 'a2 engine → ablation');
+ok(tx({ nodules: 4, size: 2.5 }).options.some(o => o.includes('技術因素') && o.includes('TARE') && o.includes('EBRT')), 'a4 engine lists technical alternative');
+ok(tx({ nodules: 5, size: 3 }).options.some(o => o.includes('OS 尚未證實')), 'a5 engine says OS unproven');
+ok(tx({ vasc: true }).options.some(o => o.includes('最佳序列尚未確立')), 'a6 engine agrees');
+// a7 UNOS 條件：與每個選項逐一比對
+const unos = (n, max, total, afp) => afp < 1000 && ((n === 1 && max > 5 && max <= 8) || (n >= 2 && n <= 3 && max <= 5 && total <= 8) || (n >= 4 && n <= 5 && max <= 3 && total <= 8));
+eq([unos(1, 9, 9, 30), unos(3, 5.5, 9, 100), unos(2, 4, 7, 1200), unos(4, 3, 8, 150)], [false, false, false, true], 'a7 only option D meets UNOS');
+eq(Q('a7').ans, 3, 'a7 key is D');
+// a10 透析以 4.0 / 3.0 計
+eq(HCC.meldNa(S({ crea: 0.5, dialysis: true })).meld, HCC.meldNa(S({ crea: 4 })).meld, 'a10 MELD-Na dialysis 4.0');
+eq(HCC.meld3(S({ crea: 0.5, dialysis: true })), HCC.meld3(S({ crea: 3 })), 'a10 MELD 3.0 dialysis 3.0');
+
+eq(HCC_MAP.dx.length, 6, 'map: 6 assessment branches');
+eq(HCC_MAP.tx.length, 6, 'map: 6 treatment branches');
+for (const b of [...HCC_MAP.dx, ...HCC_MAP.tx]) ok(b.t && b.s && b.l.length >= 3 && b.l.every(x => x.k && x.x), 'map branch complete: ' + b.t);
+const mapText = JSON.stringify(HCC_MAP);
+for (const t of ['HVPG ≥ 10', '≤ −2.60', '> −1.39', '5–6 A', '7–9 B', '10–15 C', '單顆 ≤ 5 cm', '> 1000 ng/mL', '> 5 年', '> 2.5 年', '約 2 年', '< 1 年']) ok(mapText.includes(t), 'map states ' + t);
+const mapTx = name => HCC_MAP.tx.find(b => b.t.startsWith(name));
+ok(mapTx('BCLC-0').s.includes(os({ nodules: 1, size: 1.5 })), 'map BCLC-0 OS matches engine');
+ok(mapTx('BCLC-A').s.includes(os({ nodules: 1, size: 4 })), 'map BCLC-A OS matches engine');
+ok(mapTx('BCLC-B').s.includes(os({ nodules: 5, size: 3 })), 'map BCLC-B OS matches engine');
+ok(mapTx('BCLC-C').s.includes(os({ vasc: true })), 'map BCLC-C OS matches engine');
+ok(mapTx('BCLC-D').s.includes(os({ ecog: 3 })), 'map BCLC-D OS matches engine');
+
 console.log(`${n - fail}/${n} passed`);
 process.exit(fail ? 1 : 0);

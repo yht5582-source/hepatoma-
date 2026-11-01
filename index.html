@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>HCC 預後與決策計算機</title>
-    <meta name="description" content="Child-Pugh、ALBI、MELD-Na / MELD 3.0 與 BCLC 2026 肝細胞癌分期及治療建議">
+    <meta name="description" content="Child-Pugh、ALBI、MELD-Na / MELD 3.0 與 BCLC 2026 肝細胞癌分期及治療建議，含示範病例、考題與心智圖">
     <!-- 版本鎖定，避免 CDN 主版本更新造成頁面壞掉 -->
     <script src="https://cdn.tailwindcss.com/3.4.16"></script>
     <script src="https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"></script>
@@ -26,28 +26,36 @@
         [v-cloak] { display: none; }
         .bad { border-color: #ef4444 !important; background: #fef2f2 !important; }
         .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .mm-links path { fill: none; stroke: #93c5fd; stroke-width: 2; }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans">
-    <div id="app" v-cloak class="max-w-3xl mx-auto" :style="{ paddingBottom: panelH + 'px' }">
+    <div id="app" v-cloak class="mx-auto" :class="tab === 'map' ? 'max-w-6xl' : 'max-w-3xl'" :style="{ paddingBottom: (tab === 'calc' ? panelH : 16) + 'px' }">
         <!-- 頂部導覽列 -->
-        <header class="bg-blue-600 text-white px-4 py-3 shadow-md sticky top-0 z-40 flex justify-between items-center gap-2">
-            <div class="min-w-0">
-                <h1 class="text-lg sm:text-xl font-bold leading-tight">HCC & Liver Disease Calc</h1>
-                <div class="text-[11px] text-blue-100">v2.0 · BCLC 2026 · MELD 3.0</div>
+        <header class="bg-blue-600 text-white shadow-md sticky top-0 z-40">
+            <div class="px-4 pt-3 pb-2 flex justify-between items-center gap-2">
+                <div class="min-w-0">
+                    <h1 class="text-lg sm:text-xl font-bold leading-tight">HCC & Liver Disease Calc</h1>
+                    <div class="text-[11px] text-blue-100">v2.1 · BCLC 2026 · MELD 3.0</div>
+                </div>
+                <div v-show="tab === 'calc'" class="flex items-center gap-2 shrink-0">
+                    <button @click="loadExample" class="bg-blue-500 hover:bg-blue-400 px-3 py-1 rounded-full text-sm font-semibold transition">示例</button>
+                    <button @click="reset" class="bg-blue-500 hover:bg-blue-400 px-3 py-1 rounded-full text-sm font-semibold transition">清除</button>
+                    <button v-if="deferredPrompt" @click="installPWA" class="bg-white text-blue-600 px-3 py-1 rounded-full text-sm font-semibold shadow hover:bg-gray-100 transition">安裝 APP</button>
+                </div>
             </div>
-            <div class="flex items-center gap-2 shrink-0">
-                <button @click="loadExample" class="bg-blue-500 hover:bg-blue-400 px-3 py-1 rounded-full text-sm font-semibold transition">示例</button>
-                <button @click="reset" class="bg-blue-500 hover:bg-blue-400 px-3 py-1 rounded-full text-sm font-semibold transition">清除</button>
-                <button v-if="deferredPrompt" @click="installPWA" class="bg-white text-blue-600 px-3 py-1 rounded-full text-sm font-semibold shadow hover:bg-gray-100 transition">安裝 APP</button>
-            </div>
+            <nav class="grid grid-cols-4 text-center text-sm font-semibold" aria-label="主要分頁">
+                <a v-for="t in tabs" :key="t.id" :href="'#' + t.id" :aria-current="tab === t.id ? 'page' : null"
+                   class="py-2 border-b-[3px] transition"
+                   :class="tab === t.id ? 'border-white text-white' : 'border-transparent text-blue-100 hover:text-white'">{{ t.label }}</a>
+            </nav>
         </header>
 
-        <div v-if="isExample" class="mx-4 mt-3 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-            示例病例：62 歲男性 HBV 肝硬化，單顆 4.2 cm HCC，無血管侵犯，ECOG 0，無臨床顯著門脈高壓。數值為虛構，僅供操作示範。
+        <div v-if="exampleText && tab === 'calc'" class="mx-4 mt-3 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+            {{ exampleText }}
         </div>
 
-        <main class="p-4 space-y-6">
+        <main v-show="tab === 'calc'" class="p-4 space-y-6">
             <!-- 區塊一：抽血檢驗數據 -->
             <section class="bg-white rounded-xl shadow p-5 border-t-4 border-blue-500">
                 <h2 class="text-lg font-bold text-blue-700 border-b pb-2 mb-4">1. 抽血檢驗數據</h2>
@@ -169,7 +177,7 @@
             </section>
 
             <!-- 區塊四：詳細結果 -->
-            <section id="result" class="bg-white rounded-xl shadow p-5 border-t-4 border-gray-700">
+            <section id="result" class="bg-white rounded-xl shadow p-5 border-t-4 border-gray-700 scroll-mt-28">
                 <h2 class="text-lg font-bold text-gray-800 border-b pb-2 mb-4">4. 評估結果與 BCLC 2026 建議</h2>
 
                 <div class="grid sm:grid-cols-2 gap-3 text-sm">
@@ -232,8 +240,145 @@
             </section>
         </main>
 
+        <!-- 示範病例 -->
+        <main v-if="tab === 'cases'" class="p-4 space-y-4">
+            <div>
+                <h2 class="text-xl font-bold text-gray-800">示範病例</h2>
+                <p class="text-sm text-gray-600 mt-1">六個虛構病例，各對應一個常見判斷點。先自己想，再看結果。分數與建議都由本頁計算引擎即時算出。</p>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <button v-for="(c, i) in cases" :key="c.id" @click="caseId = c.id" :aria-pressed="caseId === c.id"
+                        class="text-left p-2.5 rounded-lg border transition"
+                        :class="caseId === c.id ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 hover:border-blue-300'">
+                    <span class="block text-xs" :class="caseId === c.id ? 'text-blue-100' : 'text-blue-700'">病例 {{ i + 1 }} · {{ c.tag }}</span>
+                    <span class="block text-sm font-semibold leading-snug mt-0.5">{{ c.title }}</span>
+                </button>
+            </div>
+            <article class="bg-white rounded-xl shadow p-5 border-t-4 border-blue-500 space-y-4">
+                <h3 class="text-lg font-bold text-gray-800">{{ curCase.title }}</h3>
+                <p class="text-gray-700 leading-relaxed">{{ curCase.story }}</p>
+                <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center text-sm">
+                    <div v-for="f in caseFacts" :key="f.k" class="p-2 rounded bg-gray-50 border">
+                        <div class="text-[11px] text-gray-500">{{ f.k }}</div>
+                        <div class="font-bold text-gray-800">{{ f.v }}</div>
+                    </div>
+                </div>
+                <div class="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 font-medium">想一想：{{ curCase.ask }}</div>
+                <button v-if="!revealed[curCase.id]" @click="revealed[curCase.id] = true" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-lg font-semibold transition">看結果與解析</button>
+                <template v-else>
+                    <div class="rounded-xl bg-gray-800 text-white p-4">
+                        <div class="flex flex-wrap items-baseline gap-x-3">
+                            <span class="text-2xl font-black text-yellow-400">{{ caseResult.bclc.label }}</span>
+                            <span class="text-gray-300 text-sm">{{ caseResult.bclc.name }}</span>
+                        </div>
+                        <div class="text-xs text-gray-400 mt-1">{{ caseResult.bclc.why }}</div>
+                        <div class="mt-3 font-bold leading-snug">{{ caseResult.bclc.primary }}</div>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+                        <div class="p-2 rounded bg-blue-50 border border-blue-100"><b class="text-blue-700">Child-Pugh</b><br>{{ caseResult.cp.cls }}（{{ caseResult.cp.score }} 分）</div>
+                        <div class="p-2 rounded bg-indigo-50 border border-indigo-100"><b class="text-indigo-700">ALBI</b><br>第 {{ caseResult.albi.grade }} 級（{{ caseResult.albi.score.toFixed(2) }}）</div>
+                        <div class="p-2 rounded bg-teal-50 border border-teal-100"><b class="text-teal-700">MELD-Na / 3.0</b><br>{{ caseResult.meldNa.meldNa }} / {{ caseResult.meld3 }}</div>
+                        <div class="p-2 rounded bg-gray-50 border"><b class="text-gray-700">Milan</b><br>{{ caseResult.burden.milan ? '符合' : '不符合' }}</div>
+                        <div class="p-2 rounded bg-gray-50 border"><b class="text-gray-700">Up-to-7</b><br>{{ caseResult.burden.upTo7 ? '符合' : '不符合' }}（{{ caseResult.burden.upTo7Sum }}）</div>
+                        <div class="p-2 rounded bg-gray-50 border"><b class="text-gray-700">預期中位存活</b><br>{{ caseResult.bclc.os }}</div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-gray-800 mb-2">解析</h4>
+                        <ul class="list-disc pl-5 space-y-1.5 text-gray-700">
+                            <li v-for="t in curCase.teach" :key="t">{{ t }}</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-gray-800 mb-2">如果條件改變</h4>
+                        <ul class="space-y-2 text-sm">
+                            <li v-for="w in caseWhatIf" :key="w.label" class="p-2 rounded border bg-gray-50">
+                                <span class="text-gray-600">{{ w.label }}</span> → <b class="text-blue-800">{{ w.st.label }}</b>：{{ w.st.primary }}
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t">
+                        <span class="text-xs text-gray-500">來源：{{ curCase.src }}</span>
+                        <button @click="loadCase(curCase)" class="bg-white border border-blue-600 text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg text-sm font-semibold transition">帶入計算機</button>
+                    </div>
+                </template>
+            </article>
+        </main>
+
+        <!-- 考題 -->
+        <main v-if="tab === 'quiz'" class="p-4 space-y-4">
+            <div>
+                <h2 class="text-xl font-bold text-gray-800">考題</h2>
+                <p class="text-sm text-gray-600 mt-1">基礎 10 題，進階 10 題。選答後立即顯示解析；重新整理頁面就會清除，不會儲存作答。</p>
+            </div>
+            <div class="sticky top-[104px] z-30 bg-gray-100 py-2 flex flex-wrap items-center gap-2">
+                <button v-for="f in quizFilters" :key="f.id" @click="quizLevel = f.id" :aria-pressed="quizLevel === f.id"
+                        class="px-3 py-1 rounded-full text-sm font-semibold border transition"
+                        :class="quizLevel === f.id ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-700'">{{ f.label }}</button>
+                <span class="ml-auto text-sm font-semibold text-gray-700">已答 {{ quizScore.done }} / {{ quizList.length }}，答對 {{ quizScore.right }}</span>
+                <button @click="resetQuiz" class="text-sm text-blue-700 underline">重做</button>
+            </div>
+            <section v-for="q in quizList" :key="q.id" :id="'q-' + q.id" class="bg-white rounded-xl shadow p-4">
+                <div class="text-xs font-semibold mb-1.5" :class="q.level === 'adv' ? 'text-purple-700' : 'text-blue-700'">{{ q.level === 'adv' ? '進階' : '基礎' }} {{ q.id.slice(1) }} · {{ q.topic }}</div>
+                <p class="font-medium text-gray-800 leading-relaxed">{{ q.stem }}</p>
+                <div class="mt-3 space-y-2">
+                    <button v-for="(o, i) in q.opts" :key="i" @click="answer(q, i)" :disabled="quizAns[q.id] !== undefined"
+                            class="w-full text-left p-2.5 rounded-lg border text-sm flex gap-2 transition" :class="optClass(q, i)">
+                        <b class="shrink-0">{{ 'ABCD'[i] }}.</b><span>{{ o }}</span>
+                    </button>
+                </div>
+                <div v-if="quizAns[q.id] !== undefined" role="status" class="mt-3 p-3 rounded-lg text-sm"
+                     :class="quizAns[q.id] === q.ans ? 'bg-green-50 text-green-900' : 'bg-red-50 text-red-900'">
+                    <b>{{ quizAns[q.id] === q.ans ? '答對' : '答錯，正解是 ' + 'ABCD'[q.ans] }}。</b>{{ q.why }}
+                    <div class="text-xs opacity-75 mt-1">來源：{{ q.src }}</div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 心智圖 -->
+        <main v-if="tab === 'map'" class="p-4 space-y-4">
+            <div class="flex flex-wrap items-end justify-between gap-2">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800">評估與治療心智圖</h2>
+                    <p class="text-sm text-gray-600 mt-1">點分支展開。一側是評估與分期，另一側是各階段的治療路徑。</p>
+                </div>
+                <div class="flex gap-2">
+                    <button @click="setAllMap(true)" class="bg-white border border-gray-300 px-3 py-1 rounded-lg text-sm font-semibold text-gray-700">全部展開</button>
+                    <button @click="setAllMap(false)" class="bg-white border border-gray-300 px-3 py-1 rounded-lg text-sm font-semibold text-gray-700">全部收合</button>
+                </div>
+            </div>
+            <div ref="mapWrap" class="relative grid lg:grid-cols-[1fr_9rem_1fr] gap-4 lg:gap-8 items-start">
+                <svg class="mm-links absolute inset-0 w-full h-full pointer-events-none hidden lg:block" aria-hidden="true"><path v-for="(d, i) in mapPaths" :key="i" :d="d"></path></svg>
+                <div class="relative space-y-2 order-2 lg:order-1">
+                    <h3 class="font-bold text-indigo-700 lg:text-right">評估與分期</h3>
+                    <div v-for="(b, i) in map.dx" :key="b.t" class="bg-white rounded-lg shadow-sm border border-indigo-100">
+                        <button class="mm-head w-full text-left p-2.5 flex items-center gap-2" :aria-expanded="!!mapOpen['dx' + i]" @click="toggleMap('dx' + i)">
+                            <span class="text-indigo-500 w-3 shrink-0">{{ mapOpen['dx' + i] ? '▾' : '▸' }}</span>
+                            <span><b class="text-gray-800">{{ b.t }}</b><span class="block text-xs text-gray-500">{{ b.s }}</span></span>
+                        </button>
+                        <dl v-if="mapOpen['dx' + i]" class="px-3 pb-3 space-y-1.5 text-sm border-t border-indigo-50 pt-2">
+                            <div v-for="l in b.l" :key="l.k"><dt class="inline font-semibold text-indigo-700">{{ l.k }}：</dt><dd class="inline text-gray-700">{{ l.x }}</dd></div>
+                        </dl>
+                    </div>
+                </div>
+                <div ref="mapRoot" class="relative order-1 lg:order-2 lg:sticky lg:top-32 lg:mt-24 bg-blue-600 text-white rounded-xl p-3 text-center font-bold shadow">肝細胞癌<span class="block text-xs font-normal text-blue-100 mt-1">BCLC 2026</span></div>
+                <div class="relative space-y-2 order-3">
+                    <h3 class="font-bold text-teal-700">分期與治療</h3>
+                    <div v-for="(b, i) in map.tx" :key="b.t" class="bg-white rounded-lg shadow-sm border border-teal-100">
+                        <button class="mm-head w-full text-left p-2.5 flex items-center gap-2" :aria-expanded="!!mapOpen['tx' + i]" @click="toggleMap('tx' + i)">
+                            <span class="text-teal-500 w-3 shrink-0">{{ mapOpen['tx' + i] ? '▾' : '▸' }}</span>
+                            <span><b class="text-gray-800">{{ b.t }}</b><span class="block text-xs text-gray-500">{{ b.s }}</span></span>
+                        </button>
+                        <dl v-if="mapOpen['tx' + i]" class="px-3 pb-3 space-y-1.5 text-sm border-t border-teal-50 pt-2">
+                            <div v-for="l in b.l" :key="l.k"><dt class="inline font-semibold text-teal-700">{{ l.k }}：</dt><dd class="inline text-gray-700">{{ l.x }}</dd></div>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+            <p class="text-xs text-gray-500">依據 BCLC 2026（J Hepatol 2026;84:631）。教學摘要，實際處置須經多專科腫瘤會議依個別病人決定。</p>
+        </main>
+
         <!-- 底部固定結果面板 -->
-        <div ref="panel" class="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.1)] border-t border-gray-200 z-40 safe-bottom">
+        <div v-show="tab === 'calc'" ref="panel" class="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.1)] border-t border-gray-200 z-40 safe-bottom">
             <div class="max-w-3xl mx-auto p-3">
                 <div class="grid grid-cols-4 gap-2 text-center mb-2">
                     <div class="bg-blue-50 p-1.5 rounded-lg border border-blue-100">
@@ -494,7 +639,266 @@ const HCC = (() => {
 if (typeof module !== 'undefined') module.exports = HCC;
 /*ENGINE-END*/
 
-        const { createApp, reactive, computed, ref, onMounted, onBeforeUnmount, nextTick } = Vue;
+/*CASES-START*/
+// 虛構教學病例。input 只列與預設值不同的欄位；結果一律由 HCC 引擎即時算出，expect 由 tests.cjs 比對。
+const HCC_CASES = [
+    {
+        id: 'c1', tag: '極早期', title: '單顆 1.8 cm，但有靜脈瘤',
+        story: '76 歲女性，C 型肝炎肝硬化，已達 SVR。超音波追蹤發現單顆 1.8 cm 肝腫瘤，多相 MRI 確診。內視鏡見食道靜脈瘤，血小板 82k。無腹水、肝腦病變或失代償病史，ECOG 0。因年齡與共病不列入移植。',
+        ask: '腫瘤很小、Child-Pugh A，可以直接切除嗎？',
+        input: { bili: 1.1, alb: 3.8, inr: 1.1, crea: 0.9, na: 139, sex: 'F', cspH: true, nodules: 1, size: 1.8, afp: 12 },
+        expect: { stage: '0', cp: 'A', cpScore: 5, albi: 2, milan: true, upTo7: true, primary: '燒灼' },
+        teach: [
+            '分期決定「腫瘤有多早」，CSPH 決定「能不能開」：BCLC-0 無 CSPH 時首選切除，有 CSPH 時切除風險明顯升高。',
+            '不適合移植時，燒灼是主軸。MW 對 3–4 cm 以內腫瘤的局部控制較 RFA 可靠；SURF 試驗未顯示切除的存活優於 RFA。',
+            'BCLC 2026 也將 EBRT 納入 BCLC-0 的燒灼性選項，TACE、TARE 為可接受替代。',
+        ],
+        whatIf: [
+            { label: '沒有 CSPH', set: { cspH: false }, expect: '肝切除' },
+            { label: '有 CSPH，且可為移植候選人', set: { ltCandidate: true }, expect: '肝臟移植' },
+        ],
+        src: 'BCLC 2026：Very early stage',
+    },
+    {
+        id: 'c2', tag: '早期', title: '三顆都在 Milan 內，AFP 卻是 2400',
+        story: '55 歲男性，B 型肝炎肝硬化，抗病毒治療中。CT 見 3 顆腫瘤，最大 2.6 cm，無血管侵犯或轉移，無 CSPH，ECOG 0。原本評估可為移植候選人，AFP 2400 ng/mL。',
+        ask: '符合 Milan 準則的多發腫瘤，下一步是移植嗎？',
+        input: { bili: 1.0, alb: 3.9, inr: 1.1, crea: 0.9, na: 140, ltCandidate: true, nodules: 3, size: 2.6, afp: 2400 },
+        expect: { stage: 'A', cp: 'A', cpScore: 5, albi: 2, milan: true, upTo7: true, primary: '燒灼' },
+        teach: [
+            'Milan 內多發腫瘤的預設選項是移植，因為切除或燒灼後復發率高。',
+            'AFP > 1000 ng/mL 代表移植後復發風險過高，普遍視為移植禁忌，但不排除其他治療。',
+            '無法移植時建議燒灼。切除、TARE、EBRT 只在特定病人經 CUSE 考慮，切除不是預設第一線。',
+        ],
+        whatIf: [
+            { label: 'AFP 降為 80 ng/mL', set: { afp: 80 }, expect: '肝臟移植' },
+            { label: '最大腫瘤變成 3.4 cm', set: { size: 3.4 }, expect: 'TACE' },
+        ],
+        src: 'BCLC 2026：Early stage、Multifocal、BCLC-A multifocal',
+    },
+    {
+        id: 'c3', tag: '中期', title: '四顆腫瘤，TACE 還是全身治療？',
+        story: '67 歲男性，脂肪肝相關肝硬化。MRI 見 4 顆界線清楚的腫瘤，最大 2.8 cm，門脈血流保留，可選擇性進入供血動脈。無失代償，ECOG 0，AFP 45 ng/mL，不符合移植條件。',
+        ask: '每顆都不到 3 cm，為什麼不是 BCLC-A？該選哪個治療？',
+        input: { bili: 1.2, alb: 3.6, inr: 1.1, crea: 1.0, na: 138, nodules: 4, size: 2.8, afp: 45 },
+        expect: { stage: 'B', cp: 'A', cpScore: 5, albi: 2, milan: false, upTo7: true, primary: 'TACE' },
+        teach: [
+            'BCLC-A 最多 3 顆。2026 版明定多發：> 3 顆，或 ≤ 3 顆且至少一顆 > 3 cm。',
+            '肝功能保留時，TACE 一般優於單純栓塞。TACTICS 中，單用 TACE 在 Up-to-7 內的結果數值上較佳。',
+            'TACE 合併全身治療目前 PFS 有改善，但 OS 尚未成熟，不建議用於臨床試驗外。',
+            '區分「無法 TACE」的原因：技術因素可考慮 TARE 或 EBRT；腫瘤負荷過大則走全身治療。',
+        ],
+        whatIf: [
+            { label: '瀰漫或廣泛雙葉，無法選擇性 TACE', set: { bPattern: 'diffuse' }, expect: '全身性治療' },
+            { label: '符合當地擴大移植標準', set: { ltCandidate: true, extendedLT: true }, expect: '肝臟移植' },
+        ],
+        src: 'BCLC 2026：Intermediate stage、TACE-based combinations',
+    },
+    {
+        id: 'c4', tag: '晚期', title: '單顆 7 cm 合併門脈分支侵犯',
+        story: '61 歲男性，B 型肝炎肝硬化。CT 見單顆 7 cm 腫瘤合併門脈右分支腫瘤栓，無肝外轉移。肝功能保留，無失代償，ECOG 0，AFP 1500 ng/mL。病人希望「先切再說」。',
+        ask: '單顆腫瘤、ECOG 0，分期與第一線治療是什麼？',
+        input: { bili: 1.0, alb: 3.7, inr: 1.1, crea: 0.9, na: 139, nodules: 1, size: 7, vasc: true, afp: 1500 },
+        expect: { stage: 'C', cp: 'A', cpScore: 5, albi: 2, milan: false, upTo7: false, primary: 'Atezolizumab' },
+        teach: [
+            '大血管侵犯不論肝內腫瘤負荷，只要肝功能保留就是 BCLC-C，第一線為全身治療。',
+            '四種免疫合併療法都優於對照組，但沒有頭對頭比較，BCLC 不以跨試驗 HR 排序，要依共病、可近性與病人目標以 CUSE 選擇。',
+            '全身治療禁忌或不可行時，才在 CUSE 下考慮 TARE（DOSISPHERE-01，僅 18 例在個人化劑量組）或 EBRT（RTOG 1112）。',
+            '手術的表面優勢校正後大多消失，屬選擇偏差。BCLC 2026 的 AFP 400 切點只用於 sorafenib 後的 ramucirumab。',
+        ],
+        whatIf: [
+            { label: '沒有血管侵犯（單顆 7 cm）', set: { vasc: false }, expect: '肝切除' },
+            { label: '再加肝外轉移', set: { extra: true }, expect: '全身性治療' },
+        ],
+        src: 'BCLC 2026：Advanced stage、CUSE-tailored approach in BCLC-C',
+    },
+    {
+        id: 'c5', tag: '失代償', title: 'Child-Pugh A，卻曾靜脈瘤出血',
+        story: '52 歲女性，B 型肝炎肝硬化，一年前曾食道靜脈瘤出血。目前無腹水或肝腦病變。單顆 3.2 cm 腫瘤，無血管侵犯，AFP 60 ng/mL，ECOG 0。年齡與社會條件允許移植評估。',
+        ask: 'Child-Pugh 只有 6 分，能當作肝功能保留的 BCLC-A 嗎？',
+        input: { bili: 1.6, alb: 3.4, inr: 1.3, crea: 0.8, na: 136, sex: 'F', decompHx: true, cspH: true, ltCandidate: true, nodules: 1, size: 3.2, afp: 60 },
+        expect: { stage: 'LT', cp: 'A', cpScore: 6, albi: 2, milan: true, upTo7: true, primary: '移植' },
+        teach: [
+            'BCLC 自 2018 年起不只看 Child-Pugh：Class A 也可能包含曾腹水、靜脈瘤出血或肝腦病變的失代償病人。',
+            '單顆 HCC 合併失代償，符合登錄條件時應直接評估移植；等候期可用燒灼或動脈栓塞類治療作橋接。',
+            '因非腫瘤因素不能移植時歸 BCLC-D，但部分禁忌是暫時性的，要重新評估。',
+            '再代償要依 Baveno VII 定義；真實世界只有約 7% 達標，且文中納入擴大標準的研究沒有 HCC 病人，不能當成必然。',
+        ],
+        whatIf: [
+            { label: '不是移植候選人', set: { ltCandidate: false }, expect: '最佳支持性療法' },
+            { label: '無失代償病史，也無 CSPH', set: { decompHx: false, cspH: false }, expect: '肝切除' },
+        ],
+        src: 'BCLC 2026：Prognosis prediction、CUSE BCLC-0/A、End-stage',
+    },
+    {
+        id: 'c6', tag: '分期陷阱', title: 'ECOG 1 是腫瘤造成的嗎？',
+        story: '72 歲男性，糖尿病與肌少症，酒精性肝硬化已戒酒。單顆 2.6 cm 腫瘤，無血管侵犯或轉移，有 CSPH。總膽紅素與白蛋白偏差但無腹水。主訴一年來容易疲倦，活動量下降，登記 ECOG 1。不適合移植。',
+        ask: '工具會把這位病人歸到 BCLC-C。這個結果可以直接採用嗎？',
+        input: { bili: 2.2, alb: 3.1, inr: 1.2, crea: 1.1, na: 137, cspH: true, ecog: 1, nodules: 1, size: 2.6, afp: 18 },
+        expect: { stage: 'C', cp: 'B', cpScore: 7, albi: 2, milan: true, upTo7: true, primary: 'Atezolizumab' },
+        teach: [
+            'BCLC 的 ECOG 指癌症造成的症狀。2.6 cm 單顆腫瘤很難解釋一年的疲倦，要先想肝硬化、肌少症與衰弱。',
+            '建議加上衰弱評估工具，再由腫瘤會議判定；這裡的結果差別是全身治療與燒灼。',
+            'Child-Pugh B 無臨床失代償屬灰色地帶，ALBI −1.60 為第 2 級但已接近第 3 級，治療耐受度要個別評估。',
+            '依 CUSE，可改善的風險屬於 CONSIDER：先優化，包括術前復健，再決定。',
+        ],
+        whatIf: [
+            { label: '判定症狀非腫瘤造成（ECOG 計 0）', set: { ecog: 0 }, expect: '燒灼' },
+            { label: '再出現利尿劑可控的腹水', set: { ascites: 2 }, expect: '最佳支持性療法' },
+        ],
+        src: 'BCLC 2026：Prognosis prediction、Person-oriented CUSE',
+    },
+];
+/*CASES-END*/
+
+/*QUIZ-START*/
+// 10 基礎 + 10 進階，選項順序固定，答案 A–D 各 5 題；tests.cjs 以引擎核對可計算的題目。
+const HCC_QUIZ = [
+    { id: 'b1', level: 'basic', topic: '分期定義', stem: '肝功能保留、ECOG 0、無血管侵犯或轉移。下列何者符合 BCLC-0？',
+      opts: ['單顆 2.5 cm', '單顆 1.9 cm', '兩顆，各 1.5 cm', '三顆，各 1 cm'], ans: 1,
+      why: 'BCLC-0 為單顆 ≤ 2 cm。單顆 > 2 cm，或最多三顆且皆 ≤ 3 cm，屬於 BCLC-A。', src: 'BCLC 2026：Very early stage' },
+    { id: 'b2', level: 'basic', topic: 'Child-Pugh', stem: '總膽紅素 2.5 mg/dL、白蛋白 3.0 g/dL、INR 1.8，無腹水、無肝腦病變。Child-Pugh 為何？',
+      opts: ['A 級，6 分', 'B 級，7 分', 'C 級，10 分', 'B 級，8 分'], ans: 3,
+      why: '膽紅素 2 分、白蛋白 2 分、INR 2 分，腹水與肝腦病變各 1 分，共 8 分。7–9 分為 B 級。', src: 'Pugh 1973；本頁計算機' },
+    { id: 'b3', level: 'basic', topic: 'ALBI', stem: '總膽紅素 1.0 mg/dL、白蛋白 4.0 g/dL。ALBI 級別為何？',
+      opts: ['第 2 級，分數約 −2.59', '第 1 級，分數約 −2.59', '第 1 級，分數約 −3.40', '第 3 級，分數約 −1.20'], ans: 0,
+      why: 'log10(17.1) × 0.66 + 40 × (−0.085) ≈ −2.586，高於第 1 級上限 −2.60，因此是第 2 級。看似正常的檢驗值也可能不是第 1 級。', src: 'Johnson 2015' },
+    { id: 'b4', level: 'basic', topic: '分期定義', stem: '兩顆腫瘤，最大 3.5 cm，肝功能保留，ECOG 0，無血管侵犯或轉移。依 BCLC 2026 屬於？',
+      opts: ['BCLC-0', 'BCLC-A', 'BCLC-B', 'BCLC-C'], ans: 2,
+      why: '2026 版將多發定義為 > 3 顆，或 ≤ 3 顆且至少一顆 > 3 cm。本例屬於後者。', src: 'BCLC 2026：Keypoints、Intermediate stage' },
+    { id: 'b5', level: 'basic', topic: 'ECOG', stem: '單顆 2 cm，肝功能保留，ECOG 1。處理分期時哪一項最恰當？',
+      opts: ['ECOG 1 在 BCLC 沒有分期意義，直接視為 BCLC-0', '形式上屬於 BCLC-C，但先確認症狀是否由腫瘤造成', '依腫瘤大小歸為 BCLC-A', 'ECOG ≥ 1 一律歸為 BCLC-D'], ans: 1,
+      why: 'ECOG 1–2 在肝功能保留時歸 BCLC-C，> 2 才是 D。此量表反映癌症造成的症狀，在肝硬化與高齡病人要區分來源。', src: 'BCLC 2026：Prognosis prediction' },
+    { id: 'b6', level: 'basic', topic: '分期影像', stem: '關於 HCC 分期影像，哪一項正確？',
+      opts: ['PET 是評估肝內外腫瘤負荷的首選分期工具', '超音波可取代多相 CT 或 MRI 作為分期依據', '直徑相差幾毫米不會影響分期，可用估計值', '應以多相 CT 或 MRI 由專責放射科判讀'], ans: 3,
+      why: '多一顆結節或直徑更準確都可能改變分期。適當時加胸部 CT。CEUS 只在 CT/MRI 不確定時輔助診斷，不建議用 PET。', src: 'BCLC 2026：Prognosis prediction' },
+    { id: 'b7', level: 'basic', topic: 'AFP', stem: 'AFP 1500 ng/mL 的臨床意義，哪一項最正確？',
+      opts: ['移植後復發風險過高，但不排除其他治療', '所有局部治療與切除都因此變成禁忌，只能全身治療', '即使影像為早期，也必須改走 BCLC-D 路徑', '可直接取代影像，作為腫瘤分期的主要依據'], ans: 0,
+      why: 'AFP 升高代表預後較差，> 1000 ng/mL 通常視為移植禁忌，但不排除其他治療。', src: 'BCLC 2026：Prognosis prediction' },
+    { id: 'b8', level: 'basic', topic: '肝功能', stem: 'Child-Pugh A（6 分），一年前曾靜脈瘤出血，目前無腹水。評估肝功能時應如何看待？',
+      opts: ['A 級即肝功能保留，依腫瘤分期', '只有目前有腹水才算失代償', '有失代償事件，不應視為肝功能保留', '先改用 ALBI，有第 1 級才算保留'], ans: 2,
+      why: 'BCLC 自 2018 年起不只看 Child-Pugh。A 級也可能包含腹水、靜脈瘤出血或肝腦病變病史，這些都是嚴重門脈高壓的徵象。', src: 'BCLC 2026：Prognosis prediction' },
+    { id: 'b9', level: 'basic', topic: '預後', stem: '接受第一線建議治療的最佳情況下，BCLC 2026 的預期中位存活哪一組正確？',
+      opts: ['B 期 > 5 年，C 期 > 2.5 年，D 期約 1 年', 'B 期約 2 年，C 期 < 1 年，D 期 < 3 個月', 'B 期約 5 年，C 期 > 2.5 年，D 期 < 3 個月', 'B 期 > 2.5 年，C 期約 2 年，D 期 < 1 年'], ans: 3,
+      why: '0/A 期 > 5 年、B 期 > 2.5 年、C 期約 2 年、D 期 < 1 年。D 期圖表已改為 < 12 個月；其中嚴格符合定義者中位存活 < 3 個月。', src: 'BCLC 2026：Expected survival、CUSE BCLC-D' },
+    { id: 'b10', level: 'basic', topic: '移植準則', stem: '3 顆腫瘤，最大 4 cm，無血管侵犯或轉移。Milan 與 Up-to-7 的結果是？',
+      opts: ['兩者都符合', 'Milan 不符合，Up-to-7 符合', 'Milan 符合，Up-to-7 不符合', '兩者都不符合'], ans: 1,
+      why: 'Milan 要求單顆 ≤ 5 cm，或 2–3 顆皆 ≤ 3 cm。本例超過。Up-to-7 為 3 + 4 = 7，仍符合。', src: 'Mazzaferro 1996、2009' },
+
+    { id: 'a1', level: 'adv', topic: 'CSPH 與切除', stem: '單顆 4.5 cm 周邊腫瘤，輕度 CSPH，殘肝體積足夠，肝功能保留，ECOG 0，無法移植。哪一項與 BCLC 2026 最相符？',
+      opts: ['可考慮微創切除，由腫瘤會議以 CUSE 評估', '只要有 CSPH 就絕對不能手術，必須改走移植路徑', '單顆大於 3 cm 應直接跳到全身治療，不考慮局部治療', '開腹大範圍切除是預設選項，可達最佳腫瘤控制'], ans: 0,
+      why: '輕度 CSPH 且單顆周邊、殘肝足夠時，微創手術仍是選項。在進入全身治療前，也可考慮動脈內局部治療或放射治療。', src: 'BCLC 2026：Single intrahepatic HCC' },
+    { id: 'a2', level: 'adv', topic: '多發早期', stem: '三顆腫瘤皆 ≤ 3 cm，因共病無法移植，肝功能保留。第一步建議是？',
+      opts: ['切除，因 RCT 已證實其存活優於燒灼，應列為預設', 'TARE，因已有第三期試驗證實其優於燒灼', '燒灼；切除、TARE、EBRT 僅在特定病人考慮', '全身免疫合併療法，因多發腫瘤的復發風險高'], ans: 2,
+      why: '無法移植時建議燒灼。RCT 納入的多發病例很少，回溯研究有明顯選擇偏差，所以切除不應是預設第一線。無法燒灼時 TACE 為標準選項。', src: 'BCLC 2026：BCLC-A multifocal' },
+    { id: 'a3', level: 'adv', topic: '切除後病理', stem: '切除後的病理發現中，哪一項是經驗證的復發預測因子，並可能支持 ab initio 移植？',
+      opts: ['Macrotrabecular-massive 型態', 'VETC 型態', '液態切片的分子特徵', '微血管侵犯或衛星結節'], ans: 3,
+      why: '原文指出只有微血管侵犯與衛星結節是經驗證的預測因子。VETC 雖提示預後差，但分子或液態切片尚不足以評估復發風險。', src: 'BCLC 2026：Single intrahepatic HCC' },
+    { id: 'a4', level: 'adv', topic: 'TACE 不可行', stem: 'BCLC-B，腫瘤負荷與肝功能都合適，但因血管解剖無法執行 TACE。較合理的選項是？',
+      opts: ['視為腫瘤負荷過大，立即全身治療', 'TARE 或 EBRT，以延後全身治療', '改為單純栓塞，已證實與 TACE 存活相同', '最佳支持性療法'], ans: 1,
+      why: '要區分原因：技術因素可用 TARE 或 EBRT 延後全身治療；腫瘤負荷或肝功能使 TACE 無效才直接全身治療。但目前沒有資料支持 TARE 或 EBRT 以 OS 為依據成為第一線。', src: 'BCLC 2026：CUSE BCLC-B' },
+    { id: 'a5', level: 'adv', topic: '合併治療', stem: 'EMERALD-1、LEAP-012 與 TALENTACE 都報告 TACE 合併全身治療能改善 PFS。BCLC 2026 怎麼看？',
+      opts: ['已取代單用 TACE，成為 BCLC-B 的新標準治療', '因 PFS 有改善，臨床上可視同已有 OS 獲益', 'OS 尚未成熟，目前不建議用於臨床試驗外', '證實無效，應完全停用 TACE 並改走全身治療'], ans: 2,
+      why: 'PFS 的 HR 為 0.64–0.77，但 OS 未成熟，且 LEAP-012 的廠商新聞稿指出不太可能達到 OS 顯著差異。PFS 不是 OS 的可靠替代指標。', src: 'BCLC 2026：TACE-based combinations、Fig. 4' },
+    { id: 'a6', level: 'adv', topic: '二線治療', stem: 'Atezolizumab + bevacizumab 治療後進展，肝功能仍保留，AFP 800 ng/mL。關於下一線治療，哪一項正確？',
+      opts: ['最佳序列未確立；優先臨床試驗，並重視保留肝功能與耐受性', 'AFP 高，已有第三期試驗證實 ramucirumab 在免疫治療後有效', 'Regorafenib 已有免疫治療後的第三期試驗支持', '免疫治療失敗後應一律轉為最佳支持性療法'], ans: 0,
+      why: '隨機試驗的二線證據只來自 sorafenib 之後，免疫治療後目前只有第二期與世代研究。原文建議優先臨床試驗，否則依 CUSE 選擇。', src: 'BCLC 2026：Systemic treatment sequence、Second- and later-line' },
+    { id: 'a7', level: 'adv', topic: '降階', stem: '下列何者符合原文引用的 UNOS 降階條件？',
+      opts: ['單顆 9 cm，AFP 30', '3 顆，最大 5.5 cm，總和 9 cm，AFP 100', '2 顆，總和 7 cm，AFP 1200', '4 顆，皆 ≤ 3 cm，總和 8 cm，AFP 150'], ans: 3,
+      why: 'UNOS 條件：單顆 5–8 cm；2–3 顆皆 ≤ 5 cm 且總和 ≤ 8 cm；或 4–5 顆皆 ≤ 3 cm 且總和 ≤ 8 cm，並需 AFP < 1000 ng/mL。', src: 'BCLC 2026：Downsizing, downstaging' },
+    { id: 'a8', level: 'adv', topic: '免疫與移植', stem: '計畫在免疫檢查點抑制劑反應後移植。關於間隔時間與這條路徑的定位，哪一項正確？',
+      opts: ['不需間隔，因排斥風險與免疫藥物的停藥時機無關；此序列已成標準', '間隔 < 30 天排斥風險可能升高，建議至少 3 個月；此序列未經證實', '停藥 7 天即可安全移植，此序列已是 BCLC 的第一線標準治療', '只要 AFP 下降就不必考慮間隔，可依移植等候順序直接進行'], ans: 1,
+      why: 'BCLC 2026 將移植前全身治療歸為「可考慮但未證實」的替代序列。降階與轉化的適應症、時機與成功定義都尚未確立。', src: 'BCLC 2026：Downsizing with systemic treatment' },
+    { id: 'a9', level: 'adv', topic: 'UTP', stem: 'BCLC-B 接受數次 TACE 後，已無法選擇性治療新病灶，但影像未達正式進展標準，肝功能保留。如何判斷？',
+      opts: ['影像未達進展標準，應繼續相同治療直到符合 mRECIST 進展', '必須先等影像確認進展，才能更換為下一階段的治療', '屬於無法治療的進展 (UTP)，可轉換到下一階段的治療', '已無法 TACE，表示應立即轉為最佳支持性療法'], ans: 2,
+      why: 'UTP 代表目前策略失敗，即使沒有影像進展，也會觸發轉為下一 BCLC 階段的建議治療。原本為 TACE 定義，現已適用所有階段。', src: 'BCLC 2026：Treatment' },
+    { id: 'a10', level: 'adv', topic: 'MELD', stem: '肝硬化病人過去 7 天透析 2 次。計算 MELD-Na 與 MELD 3.0 時，肌酸酐分別以多少計？',
+      opts: ['MELD-Na 4.0，MELD 3.0 為 3.0', '兩者都以 4.0 計，因透析定義相同', '兩者都以 3.0 計，因 OPTN 已統一', '都用實際測得的透析前肌酸酐數值'], ans: 0,
+      why: 'OPTN MELD-Na 的肌酸酐上限與透析值為 4.0；MELD 3.0 降為 3.0，另外加入性別與白蛋白。', src: 'OPTN Policy 9；Kim 2021' },
+];
+/*QUIZ-END*/
+
+/*MAP-START*/
+// 葉節點重述本頁引擎與 BCLC 2026 原文；劑量與分期門檻若修改，需同步手動更新。
+const HCC_MAP = {
+    dx: [
+        { t: '腫瘤負荷', s: '分期影像', l: [
+            { k: '首選', x: '多相 CT 或 MRI，由肝癌專責放射科判讀' },
+            { k: '補充', x: '適當時加胸部 CT；CEUS 僅在 CT/MRI 不確定時輔助診斷' },
+            { k: '不建議', x: 'PET 不用於分期' },
+            { k: '要記錄', x: '顆數、最大直徑、大血管侵犯、肝外轉移' },
+        ] },
+        { t: '肝功能', s: '先判斷代償狀態', l: [
+            { k: '第一分岔', x: '有無肝硬化，代償或失代償，獨立於 Child-Pugh' },
+            { k: 'Child-Pugh', x: '5–6 A、7–9 B、10–15 C' },
+            { k: 'ALBI', x: '≤ −2.60 第 1 級；−2.60 ~ −1.39 第 2 級；> −1.39 第 3 級' },
+            { k: 'MELD', x: 'MELD-Na 透析肌酸酐 4.0；MELD 3.0 為 3.0，並納入性別與白蛋白' },
+        ] },
+        { t: '門脈高壓 CSPH', s: '影響切除風險', l: [
+            { k: '定義', x: 'HVPG ≥ 10 mmHg 或替代指標' },
+            { k: '檢查', x: 'HVPG 是金標準，非侵入性方法可協助排除或確認' },
+            { k: '限制', x: '脂肪性肝病的 HVPG 可靠度可能較差' },
+        ] },
+        { t: '體能狀態', s: 'ECOG 看癌症症狀', l: [
+            { k: '分期', x: 'ECOG 0 才可能是 0/A/B；1–2 歸 C；> 2 歸 D' },
+            { k: '注意', x: '肝硬化併發症、肌少症、衰弱與共病會混淆判讀' },
+            { k: '補充', x: '合併衰弱評估工具，由臨床判斷' },
+        ] },
+        { t: '移植評估', s: '腫瘤負荷與生物指標', l: [
+            { k: 'Milan', x: '單顆 ≤ 5 cm，或 2–3 顆皆 ≤ 3 cm' },
+            { k: 'Up-to-7', x: '顆數 + 最大直徑 ≤ 7' },
+            { k: 'AFP', x: '> 1000 ng/mL 通常視為移植禁忌，但不排除其他治療' },
+            { k: 'UNOS 降階', x: '單顆 5–8 cm；2–3 顆 ≤ 5 cm；4–5 顆 ≤ 3 cm；後二者總和 ≤ 8 cm' },
+        ] },
+        { t: '腫瘤會議 CUSE', s: '複雜、不確定、主觀、情緒', l: [
+            { k: '流程', x: '目標 → 情境 → 證據 → 討論 → 共同決策 → 定期檢討' },
+            { k: 'GO', x: '目標清楚、安全證據可靠、肝儲備足夠、可落實' },
+            { k: 'CONSIDER', x: '條件邊緣或風險可改善；資訊待補；適合臨床試驗' },
+            { k: 'NO-GO', x: '失代償風險高、絕對禁忌、照護無法落實或無可靠安全證據' },
+        ] },
+    ],
+    tx: [
+        { t: 'BCLC-0', s: '單顆 ≤ 2 cm · 中位存活 > 5 年', l: [
+            { k: '無 CSPH', x: '切除；可依當地政策考慮移植或「燒灼後等待」' },
+            { k: '有 CSPH', x: '可移植則移植；否則燒灼' },
+            { k: '替代', x: 'RFA/MW 為主，TACE、TARE、EBRT 可作為有效替代' },
+        ] },
+        { t: 'BCLC-A', s: '單顆 > 2 cm 或 ≤ 3 顆皆 ≤ 3 cm · > 5 年', l: [
+            { k: '單顆無 CSPH', x: '切除，優先微創；MVI 或衛星結節可考慮移植' },
+            { k: '單顆有 CSPH', x: '移植；不可行時燒灼，大腫瘤考慮其他局部治療' },
+            { k: '多發', x: '移植；不可行時燒灼；無法燒灼時 TACE' },
+        ] },
+        { t: 'BCLC-B', s: '> 3 顆或 ≤ 3 顆有 > 3 cm · > 2.5 年', l: [
+            { k: '移植組', x: '符合擴大或降階標準且 AFP ≤ 1000' },
+            { k: 'TACE 組', x: '界線清楚、門脈血流保留、可選擇性進入供血動脈' },
+            { k: '全身治療組', x: '瀰漫、浸潤或廣泛雙葉，無法選擇性 TACE' },
+            { k: '技術不可行', x: 'TARE 或 EBRT，以延後全身治療' },
+            { k: '合併治療', x: 'TACE 加全身治療 OS 未證實，限臨床試驗' },
+        ] },
+        { t: 'BCLC-C', s: '血管侵犯、轉移或 ECOG 1–2 · 約 2 年', l: [
+            { k: '第一線', x: 'Atezo-Bev、STRIDE、Nivo-Ipi、Camrelizumab-Rivoceranib，無頭對頭比較' },
+            { k: '其他', x: 'Lenvatinib、Durvalumab、Tislelizumab、Sorafenib' },
+            { k: 'Sorafenib 後', x: 'Regorafenib、Cabozantinib、Ramucirumab（AFP 高）' },
+            { k: '免疫治療後', x: '序列未確立；優先試驗、保留肝功能與耐受性' },
+            { k: '不可全身治療', x: 'CUSE 下考慮 TARE 或 EBRT' },
+        ] },
+        { t: 'BCLC-D / 失代償', s: 'ECOG > 2 或嚴重肝功能不全 · < 1 年', l: [
+            { k: '可移植', x: '腫瘤在移植範圍內且符合登錄條件，直接評估移植' },
+            { k: '不可移植', x: '症狀控制、併發症治療、營養與安寧緩和' },
+            { k: '再代償', x: '依 Baveno VII；達標者可重新評估，但多數病人無法達到' },
+        ] },
+        { t: '治療後再評估', s: '階段不是一次定終身', l: [
+            { k: 'UTP', x: '目前策略失敗，即使影像未進展也可轉下一階段' },
+            { k: 'TSM', x: '首選不可行時改用其他階段治療，要記錄原因' },
+            { k: '橋接', x: '等候移植時用燒灼或動脈內局部治療預防退出名單' },
+            { k: 'ICI → 移植', x: '< 30 天排斥風險可能升高；統合分析建議至少 3 個月' },
+            { k: '轉化治療', x: '仍未證實，屬替代序列' },
+        ] },
+    ],
+};
+/*MAP-END*/
+
+        const { createApp, reactive, computed, ref, watch, onMounted, onBeforeUnmount, nextTick } = Vue;
 
         const DEFAULTS = {
             bili: 1.0, alb: 4.0, inr: 1.0, crea: 1.0, na: 140, sex: 'M', dialysis: false, cholestatic: false,
@@ -508,7 +912,7 @@ if (typeof module !== 'undefined') module.exports = HCC;
         createApp({
             setup() {
                 const s = reactive({ ...DEFAULTS });
-                const isExample = ref(false);
+                const exampleText = ref('');
                 const r = computed(() => HCC.evaluate(s));
 
                 const labFields = [
@@ -519,8 +923,79 @@ if (typeof module !== 'undefined') module.exports = HCC;
                     { key: 'na', label: '鈉離子 Na (mEq/L)', step: 1 },
                 ];
 
-                const loadExample = () => { Object.assign(s, EXAMPLE); isExample.value = true; };
-                const reset = () => { Object.assign(s, DEFAULTS); isExample.value = false; };
+                const loadExample = () => { Object.assign(s, EXAMPLE); exampleText.value = '示例病例：62 歲男性 HBV 肝硬化，單顆 4.2 cm HCC，無血管侵犯，ECOG 0，無臨床顯著門脈高壓。數值為虛構，僅供操作示範。'; };
+                const reset = () => { Object.assign(s, DEFAULTS); exampleText.value = ''; };
+
+                // 分頁：#cases #quiz #map 可直接連結；其他 hash（如 #result）屬於計算機
+                const tabs = [{ id: 'calc', label: '計算機' }, { id: 'cases', label: '示範病例' }, { id: 'quiz', label: '考題' }, { id: 'map', label: '心智圖' }];
+                const hashTab = () => { const h = location.hash.slice(1); return tabs.some(t => t.id === h) ? h : 'calc'; };
+                const tab = ref(hashTab());
+                const onHash = () => {
+                    const next = hashTab();
+                    if (next !== tab.value) { tab.value = next; window.scrollTo(0, 0); }
+                };
+
+                // 示範病例
+                const caseId = ref(HCC_CASES[0].id);
+                const revealed = reactive({});
+                const curCase = computed(() => HCC_CASES.find(c => c.id === caseId.value));
+                const caseState = computed(() => ({ ...DEFAULTS, ...curCase.value.input }));
+                const caseResult = computed(() => HCC.evaluate(caseState.value));
+                const caseFacts = computed(() => {
+                    const c = caseState.value;
+                    return [{ k: '膽紅素', v: c.bili }, { k: '白蛋白', v: c.alb }, { k: 'INR', v: c.inr }, { k: '肌酸酐', v: c.crea }, { k: 'Na', v: c.na }, { k: 'AFP', v: c.afp === '' ? '—' : c.afp }];
+                });
+                const caseWhatIf = computed(() => curCase.value.whatIf.map(w => ({ label: w.label, st: HCC.evaluate({ ...caseState.value, ...w.set }).bclc })));
+                const loadCase = c => {
+                    Object.assign(s, DEFAULTS, c.input);
+                    exampleText.value = '已帶入示範病例：' + c.title + '。數值為虛構，可修改欄位觀察分期變化。';
+                    location.hash = 'calc';
+                };
+
+                // 考題：不儲存作答
+                const quizFilters = [{ id: 'all', label: '全部 20' }, { id: 'basic', label: '基礎 10' }, { id: 'adv', label: '進階 10' }];
+                const quizLevel = ref('all');
+                const quizAns = reactive({});
+                const quizList = computed(() => HCC_QUIZ.filter(q => quizLevel.value === 'all' || q.level === quizLevel.value));
+                const quizScore = computed(() => {
+                    const done = quizList.value.filter(q => quizAns[q.id] !== undefined);
+                    return { done: done.length, right: done.filter(q => quizAns[q.id] === q.ans).length };
+                });
+                const answer = (q, i) => { if (quizAns[q.id] === undefined) quizAns[q.id] = i; };
+                const resetQuiz = () => { Object.keys(quizAns).forEach(k => delete quizAns[k]); window.scrollTo(0, 0); };
+                const optClass = (q, i) => {
+                    const a = quizAns[q.id];
+                    if (a === undefined) return 'bg-white border-gray-200 hover:border-blue-400 hover:bg-blue-50';
+                    if (i === q.ans) return 'bg-green-50 border-green-500 text-green-900 font-medium';
+                    if (i === a) return 'bg-red-50 border-red-400 text-red-900';
+                    return 'bg-white border-gray-200 text-gray-400';
+                };
+
+                // 心智圖：預設收合，桌面版以 SVG 連線
+                const mapOpen = reactive({});
+                const mapWrap = ref(null), mapRoot = ref(null), mapPaths = ref([]);
+                const drawMap = () => nextTick(() => {
+                    const w = mapWrap.value, c = mapRoot.value;
+                    if (!w || !c) return;
+                    const box = w.getBoundingClientRect(), root = c.getBoundingClientRect();
+                    const ry = root.top + root.height / 2 - box.top;
+                    const out = [];
+                    w.querySelectorAll('.mm-head').forEach(h => {
+                        const r = h.getBoundingClientRect();
+                        const left = r.right <= root.left;
+                        const x0 = (left ? root.left : root.right) - box.left, x1 = (left ? r.right : r.left) - box.left;
+                        const y1 = r.top + r.height / 2 - box.top, mid = (x0 + x1) / 2;
+                        out.push(`M${x0} ${ry} C${mid} ${ry} ${mid} ${y1} ${x1} ${y1}`);
+                    });
+                    mapPaths.value = out;
+                });
+                const toggleMap = k => { mapOpen[k] = !mapOpen[k]; drawMap(); };
+                const setAllMap = v => {
+                    HCC_MAP.dx.forEach((_, i) => { mapOpen['dx' + i] = v; });
+                    HCC_MAP.tx.forEach((_, i) => { mapOpen['tx' + i] = v; });
+                    drawMap();
+                };
+                watch(tab, t => { if (t === 'map') drawMap(); });
 
                 // 底部面板高度隨內容變化，主內容留出相同空間以免被遮住
                 const panel = ref(null), panelH = ref(220);
@@ -529,8 +1004,16 @@ if (typeof module !== 'undefined') module.exports = HCC;
                     ro = new ResizeObserver(() => { if (panel.value) panelH.value = panel.value.offsetHeight + 16; });
                     nextTick(() => panel.value && ro.observe(panel.value));
                     window.addEventListener('beforeinstallprompt', onPrompt);
+                    window.addEventListener('hashchange', onHash);
+                    window.addEventListener('resize', drawMap);
+                    if (tab.value === 'map') drawMap();
                 });
-                onBeforeUnmount(() => { ro && ro.disconnect(); window.removeEventListener('beforeinstallprompt', onPrompt); });
+                onBeforeUnmount(() => {
+                    ro && ro.disconnect();
+                    window.removeEventListener('beforeinstallprompt', onPrompt);
+                    window.removeEventListener('hashchange', onHash);
+                    window.removeEventListener('resize', drawMap);
+                });
 
                 // PWA 安裝提示
                 const deferredPrompt = ref(null);
@@ -543,7 +1026,10 @@ if (typeof module !== 'undefined') module.exports = HCC;
                 };
 
                 return {
-                    s, r, labFields, isExample, loadExample, reset, panel, panelH, deferredPrompt, installPWA,
+                    s, r, labFields, exampleText, loadExample, reset, panel, panelH, deferredPrompt, installPWA,
+                    tabs, tab, cases: HCC_CASES, caseId, curCase, revealed, caseResult, caseFacts, caseWhatIf, loadCase,
+                    quizFilters, quizLevel, quizList, quizAns, quizScore, answer, resetQuiz, optClass,
+                    map: HCC_MAP, mapOpen, mapWrap, mapRoot, mapPaths, toggleMap, setAllMap,
                     labErr: computed(() => r.value.labErr), tumorErr: computed(() => r.value.tumorErr),
                 };
             }
