@@ -32,6 +32,13 @@ BCLC Staging (巴塞隆納肝癌分期 2026 版，J Hepatol 2026;84:631)
 
 自動判定分期 (0, A, B, C, D) 與 BCLC 2026 第一線治療及替代選項，並檢查 Milan / Up-to-7 準則。
 
+## v2.3 版面重新設計 (2026-11-02)
+
+- 桌面版改為左側輸入、右側固定顯示結果；手機版保留底部結果列
+- 新增 BCLC 分期位置列、ALBI 刻度、深色模式
+- 肝腦病變、腹水、ECOG 改為分段按鈕，可直接看到所有選項
+- 移除 Tailwind CDN，改用頁內 CSS；計算引擎與教學內容未更動
+
 ## v2.2 BCLC-0 路徑修正 (2026-11-02)
 
 依 BCLC 2026 第 5 圖：BCLC-0 非移植候選人首選燒灼；移植候選人才依 CSPH 分流（無 CSPH 切除，有 CSPH 移植）。
@@ -71,7 +78,7 @@ manifest.webmanifest + sw.js，部署後可離線使用。
 
 Vue.js 3 (CDN)：負責狀態管理與即時分數連動計算 (Reactivity)。
 
-Tailwind CSS (CDN)：負責響應式 UI 排版與現代化美觀設計。
+頁內 CSS：負責響應式 UI 排版、淺色與深色主題。
 
 HTML5 / JavaScript (ES6)
 

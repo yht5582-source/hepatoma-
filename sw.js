@@ -1,8 +1,8 @@
 // 離線快取：同源檔案與鎖定版本的 CDN 腳本；更新版本時修改 CACHE 名稱
-const CACHE = 'hcc-calc-v2.2';
+const CACHE = 'hcc-calc-v2.3';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png',
-  'https://cdn.tailwindcss.com/3.4.16', 'https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js',
+  'https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js',
 ];
 
 self.addEventListener('install', e => {

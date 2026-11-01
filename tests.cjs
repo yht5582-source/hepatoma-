@@ -208,5 +208,12 @@ ok(mapTx('BCLC-B').s.includes(os({ nodules: 5, size: 3 })), 'map BCLC-B OS match
 ok(mapTx('BCLC-C').s.includes(os({ vasc: true })), 'map BCLC-C OS matches engine');
 ok(mapTx('BCLC-D').s.includes(os({ ecog: 3 })), 'map BCLC-D OS matches engine');
 
+// 版面：不再依賴 Tailwind，版本號一致
+ok(!src.includes('cdn.tailwindcss.com'), 'no Tailwind CDN');
+const swSrc = fs.readFileSync(__dirname + '/sw.js', 'utf8');
+ok(!swSrc.includes('tailwind'), 'sw does not cache Tailwind');
+const pageVer = src.match(/<div>v(\d+\.\d+) · BCLC/)[1];
+eq(swSrc.match(/hcc-calc-v(\d+\.\d+)/)[1], pageVer, 'sw cache version matches page');
+
 console.log(`${n - fail}/${n} passed`);
 process.exit(fail ? 1 : 0);
