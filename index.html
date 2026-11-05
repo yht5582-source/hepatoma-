@@ -302,7 +302,7 @@
                     <svg viewBox="0 0 192 192" aria-hidden="true"><rect width="192" height="192" rx="40" fill="#f2b84b"/><path d="M40 84c0-26 26-40 58-40 34 0 56 12 56 32 0 34-36 72-66 72-10 0-10-14-22-22-16-10-26-22-26-42z" fill="#0a4246"/></svg>
                     <div>
                         <h1>HCC 預後與決策計算機</h1>
-                        <div>v2.3 · BCLC 2026 · MELD 3.0</div>
+                        <div>v2.4 · BCLC 2026 · MELD 3.0</div>
                     </div>
                 </div>
                 <nav class="tabs" aria-label="主要分頁">
@@ -382,6 +382,7 @@
                                 <label class="check"><input type="checkbox" v-model="s.decompHx"><span>曾有肝功能失代償事件（腹水、靜脈瘤出血、肝腦病變）<small>BCLC：Child-Pugh A 仍可能是失代償肝硬化，此時不視為「肝功能保留」</small></span></label>
                                 <label class="check"><input type="checkbox" v-model="s.cspH"><span>臨床顯著門脈高壓 (CSPH)<small>HVPG ≥ 10 mmHg 或替代指標（食道靜脈瘤、脾腫大合併血小板 &lt; 100k、彈性檢查等）</small></span></label>
                                 <label class="check"><input type="checkbox" v-model="s.ltCandidate"><span>可為肝臟移植候選人<small>年齡、共病、社會條件與當地移植規範允許</small></span></label>
+                                <label v-if="s.ltCandidate" class="check"><input type="checkbox" v-model="s.extendedLT"><span>符合本院 / 當地「擴大肝移植標準」（含降階成功）<small>影響 B 期與失代償路徑</small></span></label>
                             </div>
                         </div>
                     </section>
@@ -414,7 +415,6 @@
                                 <b>BCLC-B 次分組</b>
                                 <label><input type="radio" name="bpattern" v-model="s.bPattern" value="defined"><span>結節界線清楚、門脈血流保留、可選擇性進入供血動脈</span></label>
                                 <label><input type="radio" name="bpattern" v-model="s.bPattern" value="diffuse"><span>瀰漫 / 浸潤型或廣泛雙葉侵犯（無法選擇性 TACE）</span></label>
-                                <label v-if="s.ltCandidate"><input type="checkbox" v-model="s.extendedLT"><span>符合本院 / 當地「擴大肝移植標準」（含降階成功）</span></label>
                             </div>
                         </div>
                     </section>
@@ -764,8 +764,10 @@ const HCC = (() => {
 
         if (decomp) {
             const why = cp.cls === 'C' ? 'Child-Pugh C，肝功能未保留' : '失代償肝硬化（腹水 / 肝腦病變 / 失代償病史），肝功能未保留';
-            if (ltOK && b && b.milan) return {
-                stage: 'LT', label: '肝移植評估', name: '失代償肝病 · 腫瘤在 Milan 內', why,
+            // BCLC 2026 Fig. 2：符合移植影像條件，含 Milan 或院內擴大標準
+            const radiologic = !!b && (b.milan || (!!s.extendedLT && !s.vasc && !s.extra));
+            if (ltOK && radiologic) return {
+                stage: 'LT', label: '肝移植評估', name: '失代償肝病 · ' + (b.milan ? '腫瘤在 Milan 內' : '符合院內擴大標準'), why,
                 primary: '若符合移植登錄條件 → 直接評估肝臟移植',
                 options: ['等候期間可用燒灼或動脈栓塞類治療作為橋接，避免腫瘤進展而退出名單',
                     '若因非腫瘤因素無法移植 → 歸為 BCLC-D；暫時性禁忌改善後可再評估'], os: OS.na,
@@ -791,14 +793,15 @@ const HCC = (() => {
 
         const multifocal = n > 3 || (n >= 2 && d > 3);
         if (multifocal) {
+            // 移植次分組限結節界線清楚者，瀰漫型優先判定
+            if (s.bPattern === 'diffuse') return {
+                stage: 'B', label: 'Stage B', name: '中期 (Intermediate) · 瀰漫型', why: '瀰漫 / 浸潤 / 廣泛雙葉，無法選擇性 TACE',
+                primary: '全身性治療 — ' + SYSTEMIC_1L, options: ['TACE 合併全身治療（EMERALD-1、LEAP-012 等）OS 尚未證實，目前限臨床試驗'], os: OS.B,
+            };
             if (s.ltCandidate && s.extendedLT && !afpBlocksLT) return {
                 stage: 'B', label: 'Stage B', name: '中期 (Intermediate) · 移植次分組', why: '多發：' + (n > 3 ? '> 3 顆' : '≤ 3 顆但最大 > 3 cm') + '，ECOG 0，肝功能保留',
                 primary: '符合擴大移植標準 → 肝臟移植（必要時先降階 / 橋接）',
                 options: ['AFP > 1000 ng/mL 為移植禁忌', '移植前全身性治療屬「可考慮但未證實」的序列'], os: OS.B,
-            };
-            if (s.bPattern === 'diffuse') return {
-                stage: 'B', label: 'Stage B', name: '中期 (Intermediate) · 瀰漫型', why: '瀰漫 / 浸潤 / 廣泛雙葉，無法選擇性 TACE',
-                primary: '全身性治療 — ' + SYSTEMIC_1L, options: ['TACE 合併全身治療（EMERALD-1、LEAP-012 等）OS 尚未證實，目前限臨床試驗'], os: OS.B,
             };
             return {
                 stage: 'B', label: 'Stage B', name: '中期 (Intermediate) · TACE 次分組', why: '多發：' + (n > 3 ? '> 3 顆' : '≤ 3 顆但最大 > 3 cm') + '，ECOG 0，肝功能保留',
@@ -819,14 +822,14 @@ const HCC = (() => {
         };
         if (single) {
             // BCLC 2026 Fig. 5：BCLC-0 非移植候選人 → 燒灼；移植候選人才依門脈壓分流
-            if (stage === '0' && !s.ltCandidate && !s.cspH) return {
+            if (stage === '0' && !ltOK && !s.cspH) return {
                 ...head, why: head.why + '，非移植候選人', primary: '燒灼（RFA / MWA，MWA 較佳）',
                 options: ['TACE、TARE、EBRT 為可接受替代；周邊腫瘤也可考慮微創切除',
-                    '若可為移植候選人，改依門脈壓分流：無 CSPH 切除，有 CSPH 移植'], os: OS.early,
+                    s.ltCandidate ? 'AFP > 1000 ng/mL：移植後復發風險過高，視為不能移植' : '若可為移植候選人，改依門脈壓分流：無 CSPH 切除，有 CSPH 移植'], os: OS.early,
             };
             if (!s.cspH) return {
                 ...head, primary: '肝切除' + (stage === 'A' ? '（優先微創）' : ''),
-                options: [stage === '0' ? (afpBlocksLT ? 'AFP > 1000 ng/mL：移植後復發風險過高' : '也可依當地政策考慮直接移植，或「燒灼後等待」復發時再評估移植') : '病理有微血管侵犯 / 衛星結節者可考慮直接 (ab initio) 移植',
+                options: [stage === '0' ? '也可依當地政策考慮直接移植，或「燒灼後等待」復發時再評估移植' : '病理有微血管侵犯 / 衛星結節者可考慮直接 (ab initio) 移植',
                     '無法切除 → 燒灼（MWA 對 ≤ 3–4 cm 局部控制優於 RFA）；TACE、TARE、EBRT 為可接受替代'], os: OS.early,
             };
             if (ltOK) return {

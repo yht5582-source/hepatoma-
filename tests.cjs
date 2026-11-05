@@ -121,6 +121,13 @@ ok(tx({ nodules: 5, size: 4 }).primary.startsWith('TACE'), 'BCLC-B defined → T
 ok(tx({ nodules: 5, size: 4, bPattern: 'diffuse' }).primary.includes('全身性治療'), 'BCLC-B diffuse → systemic');
 ok(tx({ nodules: 5, size: 4, ltCandidate: true, extendedLT: true }).primary.includes('肝臟移植'), 'BCLC-B extended LT → transplant');
 ok(tx({ nodules: 5, size: 4, extendedLT: true }).primary.startsWith('TACE'), 'extendedLT ignored if not LT candidate');
+ok(tx({ nodules: 5, size: 4, bPattern: 'diffuse', ltCandidate: true, extendedLT: true }).primary.includes('全身性治療'), 'BCLC-B diffuse outranks extended LT');
+ok(tx({ nodules: 1, size: 1.8, ltCandidate: true, afp: 2000 }).primary.includes('燒灼'), 'BCLC-0 LT candidate, no CSPH, AFP > 1000 → ablation');
+ok(tx({ nodules: 1, size: 1.8, ltCandidate: true, afp: 1000 }).primary.includes('肝切除'), 'BCLC-0 AFP exactly 1000 keeps resection');
+eq(stage({ ascites: 2, ltCandidate: true, nodules: 4, size: 2 }), 'D', 'decompensated outside Milan → D');
+eq(stage({ ascites: 2, ltCandidate: true, extendedLT: true, nodules: 4, size: 2 }), 'LT', 'decompensated within extended criteria → LT path');
+eq(stage({ ascites: 2, ltCandidate: true, extendedLT: true, nodules: 4, size: 2, afp: 2000 }), 'D', 'extended criteria still blocked by AFP > 1000');
+eq(stage({ ascites: 2, ltCandidate: true, extendedLT: true, nodules: 1, size: 3, vasc: true }), 'D', 'extended criteria do not apply with vascular invasion');
 ok(tx({ vasc: true }).primary.includes('Atezolizumab'), 'BCLC-C → IO combination');
 ok(tx({ vasc: true, afp: 500 }).options.some(o => o.includes('本例符合')), 'AFP ≥400 → ramucirumab flag');
 ok(tx({ ecog: 4 }).primary.includes('支持性'), 'BCLC-D → BSC');
